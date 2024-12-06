@@ -7,26 +7,23 @@ import (
 	"os"
 	"os/exec"
 	"regexp"
+	"strings"
+
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 )
 
 func main() {
-	// Custom flag handling
 	namespace := flag.String("n", "default", "Namespace to query pods from")
-	container := flag.String("c", "", "Container name (optional)")
-	since := flag.String("since", "", "Only return logs newer than a relative duration")
-	limit := flag.Int64("tail", -1, "Number of lines to show from the end of the logs")
 	filter := flag.String("filter", "", "Regex to filter pod names (mandatory)")
+	extraArgs := flag.String("extraArgs", "", "Extra args to be passed on to kubectl")
 	help := flag.Bool("help", false, "Show usage information")
 	flag.Usage = printUsage
 
-	// Parse only known flags
 	flag.Parse()
 
-	// All remaining arguments are for kubectl
-	extraArgs := flag.Args()
+	extraArgsList := strings.Split(*extraArgs, " ")
 
 	if *help {
 		printUsage()
@@ -39,21 +36,18 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Compile the regex
 	regex, err := regexp.Compile(*filter)
 	if err != nil {
 		fmt.Printf("Error compiling regex: %v\n", err)
 		os.Exit(1)
 	}
 
-	// Create Kubernetes client
 	clientset, err := createK8sClient()
 	if err != nil {
 		fmt.Printf("Error creating Kubernetes client: %v\n", err)
 		os.Exit(1)
 	}
 
-	// Fetch all pods in the namespace
 	pods, err := clientset.CoreV1().Pods(*namespace).List(context.TODO(), v1.ListOptions{})
 	if err != nil {
 		fmt.Printf("Error listing pods: %v\n", err)
@@ -65,7 +59,6 @@ func main() {
 		return
 	}
 
-	// Aggregate logs from matching pods
 	matched := 0
 	for _, pod := range pods.Items {
 		if !regex.MatchString(pod.Name) {
@@ -73,21 +66,8 @@ func main() {
 		}
 		matched++
 		fmt.Printf("\n--- Logs from pod: %s ---\n", pod.Name)
-
-		// Construct kubectl logs arguments
 		cmdArgs := []string{"logs", pod.Name, "-n", *namespace}
-		if *container != "" {
-			cmdArgs = append(cmdArgs, "-c", *container)
-		}
-		if *since != "" {
-			cmdArgs = append(cmdArgs, "--since", *since)
-		}
-		if *limit > -1 {
-			cmdArgs = append(cmdArgs, "--tail", fmt.Sprintf("%d", *limit))
-		}
-		cmdArgs = append(cmdArgs, extraArgs...)
-
-		// Execute kubectl logs command
+		cmdArgs = append(cmdArgs, extraArgsList...)
 		runKubectlCommand(cmdArgs)
 	}
 
@@ -96,21 +76,17 @@ func main() {
 	}
 }
 
-// printUsage displays usage information for the plugin
 func printUsage() {
 	fmt.Println(`Usage:
 kuddle [options] --filter <regex> [additional kubectl logs flags]
 
 Options:
+  --filter <regex>              Regex to filter pod names (mandatory)
   -n, --namespace <namespace>   Namespace to query pods from (default: "default")
-  -c, --container <name>        Container name (optional)
-      --since <duration>        Only return logs newer than a relative duration
-      --tail <lines>            Number of lines to show from the end of the logs
-      --filter <regex>          Regex to filter pod names (mandatory)
+  --extraArgs                   flags to be passed into kubectl logs command
   --help                        Show this usage information`)
 }
 
-// createK8sClient creates and returns a Kubernetes client
 func createK8sClient() (*kubernetes.Clientset, error) {
 	kubeconfig := os.Getenv("KUBECONFIG")
 	if kubeconfig == "" {
@@ -123,8 +99,9 @@ func createK8sClient() (*kubernetes.Clientset, error) {
 	return kubernetes.NewForConfig(config)
 }
 
-// runKubectlCommand runs a kubectl command with the given arguments
 func runKubectlCommand(args []string) {
+	fmt.Println(args)
+
 	cmd := exec.Command("kubectl", args...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
