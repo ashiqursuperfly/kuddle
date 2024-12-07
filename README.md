@@ -1,0 +1,1 @@
+# go through release checklist using https://github.com/robscott/kube-capacity/tree/main/.github/workflows as reference

@@ -21,9 +21,11 @@ func generateANSIEscapeColorCode(name string) string {
 
 var mutex sync.Mutex
 
-func WriteKubectlLogs(color string, pod string, line string) {
+func WriteKubectlLogs(group string, line string) {
 	mutex.Lock()
 	defer mutex.Unlock()
 
-	fmt.Printf("%s%s ]- %s%s\n", color, pod, line, "\033[0m")
+	color := generateANSIEscapeColorCode(group)
+
+	fmt.Printf("%s%s ]- %s%s\n", color, group, line, "\033[0m")
 }

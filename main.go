@@ -43,52 +43,50 @@ func createK8sClient() (*kubernetes.Clientset, error) {
 	return kubernetes.NewForConfig(config)
 }
 
-func runKubectlCommandAsync(pod string, args []string, color string) {
+func runKubectlCommandAsync(pod string, args []string) {
 	go func() {
 		defer wg.Done() // Decrement the WaitGroup counter when the goroutine completes
 
 		cmd := exec.Command("kubectl", args...)
 		stdout, err := cmd.StdoutPipe()
 		if err != nil {
-			WriteKubectlLogs(color, pod, fmt.Sprintf("Error creating stdout pipe: %v", err))
+			WriteKubectlLogs(pod, fmt.Sprintf("Error creating stdout pipe: %v", err))
 			return
 		}
 
 		stderr, err := cmd.StderrPipe()
 		if err != nil {
-			WriteKubectlLogs(color, pod, fmt.Sprintf("Error creating stderr pipe: %v", err))
+			WriteKubectlLogs(pod, fmt.Sprintf("Error creating stderr pipe: %v", err))
 			return
 		}
 
 		if err := cmd.Start(); err != nil {
-			WriteKubectlLogs(color, pod, fmt.Sprintf("Error starting kubectl command: %v", err))
+			WriteKubectlLogs(pod, fmt.Sprintf("Error starting kubectl command: %v", err))
 			return
 		}
 
-		// Process logs line by line from stdout
 		go func() {
 			scanner := bufio.NewScanner(stdout)
 			for scanner.Scan() {
-				WriteKubectlLogs(color, pod, scanner.Text())
+				WriteKubectlLogs(pod, scanner.Text())
 			}
 			if err := scanner.Err(); err != nil {
-				WriteKubectlLogs(color, pod, fmt.Sprintf("Error reading stdout: %v", err))
+				WriteKubectlLogs(pod, fmt.Sprintf("Error reading stdout: %v", err))
 			}
 		}()
 
-		// Process error output
 		go func() {
 			scanner := bufio.NewScanner(stderr)
 			for scanner.Scan() {
-				WriteKubectlLogs(color, pod, scanner.Text())
+				WriteKubectlLogs(pod, scanner.Text())
 			}
 			if err := scanner.Err(); err != nil {
-				WriteKubectlLogs(color, pod, fmt.Sprintf("Error reading stderr: %v", err))
+				WriteKubectlLogs(pod, fmt.Sprintf("Error reading stderr: %v", err))
 			}
 		}()
 
 		if err := cmd.Wait(); err != nil {
-			WriteKubectlLogs(color, pod, fmt.Sprintf("Error waiting for kubectl command: %v", err))
+			WriteKubectlLogs(pod, fmt.Sprintf("Error waiting for kubectl command: %v", err))
 		}
 	}()
 }
@@ -147,14 +145,11 @@ func main() {
 		cmdArgs := []string{"logs", pod.Name, "-n", *namespace}
 		cmdArgs = append(cmdArgs, extraArgsList...)
 
-		// Assign color
-		color := generateANSIEscapeColorCode(pod.Name)
-
 		// Increment the WaitGroup counter
 		wg.Add(1)
 
 		// Run the command in a new goroutine
-		runKubectlCommandAsync(pod.Name, cmdArgs, color)
+		runKubectlCommandAsync(pod.Name, cmdArgs)
 	}
 
 	// Wait for all goroutines to finish
