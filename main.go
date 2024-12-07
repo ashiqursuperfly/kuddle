@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"flag"
 	"fmt"
@@ -8,11 +9,89 @@ import (
 	"os/exec"
 	"regexp"
 	"strings"
+	"sync"
 
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 )
+
+const VERSION = "0.0.1"
+
+var wg sync.WaitGroup
+
+func printUsage() {
+	fmt.Printf(`Usage:
+kuddle [options] --filter <regex> [additional kubectl logs flags]
+%s
+Options:
+  --filter <regex>              Regex to filter pod names (mandatory). Must be matchable using go regexp: regex.MatchString
+  -n, --namespace <namespace>   Namespace to query pods from (default: "default")
+  --extraArgs                   flags to be passed into kubectl logs command
+  --help                        Show this usage information`, VERSION)
+}
+
+func createK8sClient() (*kubernetes.Clientset, error) {
+	kubeconfig := os.Getenv("KUBECONFIG")
+	if kubeconfig == "" {
+		kubeconfig = os.ExpandEnv("$HOME/.kube/config")
+	}
+	config, err := clientcmd.BuildConfigFromFlags("", kubeconfig)
+	if err != nil {
+		return nil, err
+	}
+	return kubernetes.NewForConfig(config)
+}
+
+func runKubectlCommandAsync(args []string, color string) {
+	go func() {
+		defer wg.Done() // Decrement the WaitGroup counter when the goroutine completes
+
+		cmd := exec.Command("kubectl", args...)
+		stdout, err := cmd.StdoutPipe()
+		if err != nil {
+			WriteKubectlLogs(color, args, fmt.Sprintf("Error creating stdout pipe: %v", err))
+			return
+		}
+
+		stderr, err := cmd.StderrPipe()
+		if err != nil {
+			WriteKubectlLogs(color, args, fmt.Sprintf("Error creating stderr pipe: %v", err))
+			return
+		}
+
+		if err := cmd.Start(); err != nil {
+			WriteKubectlLogs(color, args, fmt.Sprintf("Error starting kubectl command: %v", err))
+			return
+		}
+
+		// Process logs line by line from stdout
+		go func() {
+			scanner := bufio.NewScanner(stdout)
+			for scanner.Scan() {
+				WriteKubectlLogs(color, args, scanner.Text())
+			}
+			if err := scanner.Err(); err != nil {
+				WriteKubectlLogs(color, args, fmt.Sprintf("Error reading stdout: %v", err))
+			}
+		}()
+
+		// Process error output
+		go func() {
+			scanner := bufio.NewScanner(stderr)
+			for scanner.Scan() {
+				WriteKubectlLogs(color, args, scanner.Text())
+			}
+			if err := scanner.Err(); err != nil {
+				WriteKubectlLogs(color, args, fmt.Sprintf("Error reading stderr: %v", err))
+			}
+		}()
+
+		if err := cmd.Wait(); err != nil {
+			WriteKubectlLogs(color, args, fmt.Sprintf("Error waiting for kubectl command: %v", err))
+		}
+	}()
+}
 
 func main() {
 	namespace := flag.String("n", "default", "Namespace to query pods from")
@@ -65,48 +144,25 @@ func main() {
 			continue
 		}
 		matched++
-		fmt.Printf("\n--- Logs from pod: %s ---\n", pod.Name)
 		cmdArgs := []string{"logs", pod.Name, "-n", *namespace}
 		cmdArgs = append(cmdArgs, extraArgsList...)
-		runKubectlCommand(cmdArgs)
+
+		// Assign color
+		color := generateColor(pod.Name)
+
+		// Increment the WaitGroup counter
+		wg.Add(1)
+
+		// Run the command in a new goroutine
+		runKubectlCommandAsync(cmdArgs, color)
 	}
 
+	// Wait for all goroutines to finish
+	wg.Wait()
+
+	fmt.Println("Finished showing logs from %s pods", matched)
 	if matched == 0 {
 		fmt.Printf("No pods matched the regex '%s' in namespace '%s'\n", *filter, *namespace)
 	}
 }
 
-func printUsage() {
-	fmt.Println(`Usage:
-kuddle [options] --filter <regex> [additional kubectl logs flags]
-
-Options:
-  --filter <regex>              Regex to filter pod names (mandatory)
-  -n, --namespace <namespace>   Namespace to query pods from (default: "default")
-  --extraArgs                   flags to be passed into kubectl logs command
-  --help                        Show this usage information`)
-}
-
-func createK8sClient() (*kubernetes.Clientset, error) {
-	kubeconfig := os.Getenv("KUBECONFIG")
-	if kubeconfig == "" {
-		kubeconfig = os.ExpandEnv("$HOME/.kube/config")
-	}
-	config, err := clientcmd.BuildConfigFromFlags("", kubeconfig)
-	if err != nil {
-		return nil, err
-	}
-	return kubernetes.NewForConfig(config)
-}
-
-func runKubectlCommand(args []string) {
-	fmt.Println(args)
-
-	cmd := exec.Command("kubectl", args...)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-
-	if err := cmd.Run(); err != nil {
-		fmt.Printf("Error executing kubectl command: %v\n", err)
-	}
-}
