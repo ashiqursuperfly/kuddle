@@ -6,13 +6,9 @@ import (
 	"os"
 	"regexp"
 	"strings"
-	"sync"
 )
 
 const VERSION = "0.0.1"
-
-var wg sync.WaitGroup
-
 func printUsage() {
 	fmt.Printf(`Usage:
 kuddle [options] --filter <regex> [additional kubectl logs flags]
@@ -76,7 +72,7 @@ func main() {
 	// Wait for all goroutines to finish
 	wg.Wait()
 
-	fmt.Println("Finished showing logs from %s pods", matched)
+	fmt.Printf("Finished showing logs from %v pods\n", matched)
 	if matched == 0 {
 		fmt.Printf("No pods matched the regex '%s' in namespace '%s'\n", *filter, *namespace)
 	}

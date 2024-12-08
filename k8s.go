@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 
@@ -41,6 +42,16 @@ func ListPods(namespace string) corev1.PodList {
 	return *pods
 }
 
+func processPipe(pod string, f io.ReadCloser) {
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		WriteKubectlLogs(pod, scanner.Text())
+	}
+	if err := scanner.Err(); err != nil {
+		WriteKubectlLogs(pod, fmt.Sprintf("Error reading stdout/stderr pipe: %v", err))
+	}
+}
+
 func RunKubectlCommandAsync(pod string, args []string) {
 	go func() {
 		defer wg.Done()
@@ -63,25 +74,8 @@ func RunKubectlCommandAsync(pod string, args []string) {
 			return
 		}
 
-		go func() {
-			scanner := bufio.NewScanner(stdout)
-			for scanner.Scan() {
-				WriteKubectlLogs(pod, scanner.Text())
-			}
-			if err := scanner.Err(); err != nil {
-				WriteKubectlLogs(pod, fmt.Sprintf("Error reading stdout: %v", err))
-			}
-		}()
-
-		go func() {
-			scanner := bufio.NewScanner(stderr)
-			for scanner.Scan() {
-				WriteKubectlLogs(pod, scanner.Text())
-			}
-			if err := scanner.Err(); err != nil {
-				WriteKubectlLogs(pod, fmt.Sprintf("Error reading stderr: %v", err))
-			}
-		}()
+		go processPipe(pod, stdout)
+		go processPipe(pod, stderr)
 
 		if err := cmd.Wait(); err != nil {
 			WriteKubectlLogs(pod, fmt.Sprintf("Error waiting for kubectl command: %v", err))
