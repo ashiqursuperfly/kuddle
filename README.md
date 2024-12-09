@@ -27,6 +27,9 @@ Options:
   --help                        Show this usage information%
 ```
 
+- Each log line follows the following format: `<pod-name> ]- <log-line>`
+- Log lines coming from each unique pod will have it's own unique color for better visibility.
+
 ![kubectl-kuddle-example](images/image.png)
 
 ## Contributing
