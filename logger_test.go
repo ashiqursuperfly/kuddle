@@ -47,7 +47,12 @@ func TestWriteKubectlLogs(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			r, w, _ := os.Pipe()
+			r, w, err := os.Pipe()
+
+			if err != nil {
+				t.Fatalf("Failed to create pipe: %v", err)
+			}
+
 			stdout := os.Stdout
 
 			defer func() { os.Stdout = stdout }() // return stdout after the test
@@ -57,14 +62,17 @@ func TestWriteKubectlLogs(t *testing.T) {
 			expectedOutput := fmt.Sprintf("%s%s ]- %s%s\n", expectedColor, tt.pod, tt.line, "\033[0m")
 
 			WriteKubectlLogs(tt.pod, tt.line)
-			w.Close()
+
+			if err := w.Close(); err != nil {
+				t.Fatalf("Failed to close writer: %v", err)
+			}
 
 			var buf bytes.Buffer
-			buf.ReadFrom(r)
+			if _, err := buf.ReadFrom(r); err != nil {
+				t.Fatalf("Failed to read from pipe: %v", err)
+			}
 
-			// Check the captured output
 			assert.Equal(t, expectedOutput, buf.String())
-
 		})
 	}
 

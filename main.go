@@ -9,6 +9,7 @@ import (
 )
 
 const VERSION = "0.0.1"
+
 func printUsage() {
 	fmt.Printf(`Usage:
 kuddle [options] --filter <regex> [additional kubectl logs flags]
