@@ -1,0 +1,25 @@
+name: release
+
+env:
+  GO_VERSION: stable
+
+on:
+  push:
+    tags:
+      - v*
+
+jobs:
+  goreleaser-release:
+    runs-on: ubuntu-latest
+    environment: release
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+      - uses: goreleaser/goreleaser-action@v5
+        with:
+          version: latest
+          args: release --clean
+      - uses: rajatjindal/krew-release-bot@v0.0.46
+        if: ${{ !contains(github.ref, "rc") }}
