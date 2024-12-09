@@ -1,0 +1,56 @@
+apiVersion: krew.googlecontainertools.github.com/v1alpha2
+kind: Plugin
+metadata:
+  name: kuddle
+spec:
+  version: {{ .TagName }}
+  homepage: https://github.com/ashiqursuperfly/kuddle
+  shortDescription: Extends the functionality of kubectl logs to display logs from multiple pods.
+  description: |
+    Simple CLI that extends the functionality of kubectl logs to display logs from multiple pods matching a filter.
+  platforms:
+  - selector:
+      matchLabels:
+        os: darwin
+        arch: amd64
+    bin: kuddle
+    files:
+    - from: "*"
+      to: "."
+    {{addURIAndSha "https://github.com/ashiqursuperfly/kuddle/releases/download/{{ .TagName }}/kuddle_{{ .TagName }}_darwin_x86_64.tar.gz" .TagName }}
+  - selector:
+      matchLabels:
+        os: darwin
+        arch: arm64
+    bin: kuddle
+    files:
+    - from: "*"
+      to: "."
+    {{addURIAndSha "https://github.com/ashiqursuperfly/kuddle/releases/download/{{ .TagName }}/kuddle_{{ .TagName }}_darwin_arm64.tar.gz" .TagName }}
+  - selector:
+      matchLabels:
+        os: linux
+        arch: amd64
+    bin: kuddle
+    files:
+    - from: "*"
+      to: "."
+    {{addURIAndSha "https://github.com/ashiqursuperfly/kuddle/releases/download/{{ .TagName }}/kuddle_{{ .TagName }}_linux_x86_64.tar.gz" .TagName }}
+  - selector:
+      matchLabels:
+        os: linux
+        arch: arm64
+    bin: kuddle
+    files:
+    - from: "*"
+      to: "."
+    {{addURIAndSha "https://github.com/ashiqursuperfly/kuddle/releases/download/{{ .TagName }}/kuddle_{{ .TagName }}_linux_arm64.tar.gz" .TagName }}
+  - selector:
+      matchLabels:
+        os: windows
+        arch: amd64
+    bin: kuddle.exe
+    files:
+    - from: "*"
+      to: "."
+    {{addURIAndSha "https://github.com/ashiqursuperfly/kuddle/releases/download/{{ .TagName }}/kuddle_{{ .TagName }}_windows_x86_64.zip" .TagName }}
