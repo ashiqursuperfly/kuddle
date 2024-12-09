@@ -1,6 +1,6 @@
 # kuddle
 
-[![Go Report Card](https://goreportcard.com/badge/github.com/ashiqursuperfly/kuddle?v=1)](https://goreportcard.com/report/github.com/ashiqursuperfly/kuddle)
+[![Go Report Card](https://goreportcard.com/badge/github.com/ashiqursuperfly/kuddle)](https://goreportcard.com/report/github.com/ashiqursuperfly/kuddle)
 
 Simple CLI that extends the functionality of kubectl logs to display logs from multiple pods matching a filter.
 
